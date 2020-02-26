@@ -32,6 +32,7 @@ import (
 	"compress/gzip"
 
 	"github.com/gobwas/glob"
+	"github.com/pkg/errors"
 )
 
 type httpBackend struct {
@@ -58,11 +59,17 @@ type LimitRule struct {
 	// RandomDelay is the extra randomized duration to wait added to Delay before creating a new request
 	RandomDelay time.Duration
 	// Parallelism is the number of the maximum allowed concurrent requests of the matching domains
-	Parallelism    int
-	waitChan       chan bool
-	compiledRegexp *regexp.Regexp
-	compiledGlob   glob.Glob
+	Parallelism      int
+	waitChan         chan bool
+	compiledRegexp   *regexp.Regexp
+	compiledGlob     glob.Glob
+	requestCallbacks []LimitRequestCallback
+	lock             sync.RWMutex
 }
+
+// LimitRequestCallback is a callback invoked before an http.Request is performed.
+// If the callback returns false, then request is aborted.
+type LimitRequestCallback func(*http.Request) bool
 
 // Init initializes the private members of LimitRule
 func (r *LimitRule) Init() error {
@@ -92,6 +99,15 @@ func (r *LimitRule) Init() error {
 		return ErrNoPattern
 	}
 	return nil
+}
+
+// OnRequest registers a function. Function will be executed immediately before
+// request made by the Collector
+func (r *LimitRule) OnRequest(f LimitRequestCallback) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	r.requestCallbacks = append(r.requestCallbacks, f)
 }
 
 func (h *httpBackend) Init(jar http.CookieJar) {
@@ -170,6 +186,15 @@ func (h *httpBackend) Do(request *http.Request, bodySize int, checkHeadersFunc c
 	r := h.GetMatchingRule(request.URL.Host)
 	if r != nil {
 		r.waitChan <- true
+
+		// Invoke request callbacks.
+		for _, f := range r.requestCallbacks {
+			if !f(request) {
+				<-r.waitChan
+				return nil, errors.Errorf("request aborted by LimitRule request callback")
+			}
+		}
+
 		defer func(r *LimitRule) {
 			randomDelay := time.Duration(0)
 			if r.RandomDelay != 0 {
