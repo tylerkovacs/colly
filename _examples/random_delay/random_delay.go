@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gocolly/colly/v2"
-	"github.com/gocolly/colly/v2/debug"
+	"github.com/tylerkovacs/colly/v2"
+	"github.com/tylerkovacs/colly/v2/debug"
 )
 
 func main() {

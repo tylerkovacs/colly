@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/gocolly/colly/v2"
+	"github.com/tylerkovacs/colly/v2"
 )
 
 type item struct {

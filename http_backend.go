@@ -69,6 +69,9 @@ type LimitRule struct {
 
 // LimitRequestCallback is a callback invoked before an http.Request is performed.
 // If the callback returns false, then request is aborted.
+// Unlike the main colly.OnRequest callbacks (which are executed when the url is
+// first submitted to the queue) this callback is executed immediately before the
+// request is executed.
 type LimitRequestCallback func(*http.Request) bool
 
 // Init initializes the private members of LimitRule
